@@ -12,6 +12,44 @@ import pillow_heif
 import math
 import datetime
 from PIL import ImageOps
+import uuid
+import requests
+from supabase import create_client
+
+SUPABASE_URL = "https://yvimwdrcqxkeqzjsvwni.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aW13ZHJjcXhrZXF6anN2d25pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mjg3NjMsImV4cCI6MjA4OTEwNDc2M30.0KE4E-vrJqnVmVmmOqxDNhJh-3lsDuy-r-ixxdDyFpQ"
+supabase     = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def upload_images_to_supabase(game_id, files):
+    """Upload a list of Streamlit UploadedFile objects."""
+    paths = []
+    for f in files:
+        ext      = os.path.splitext(f.name)[1].lower()
+        filename = f"{uuid.uuid4()}{ext}"
+        path     = f"{game_id}/{filename}"
+        supabase.storage.from_("game-images").upload(
+            path,
+            f.read(),
+            {"content-type": f.type}
+        )
+        paths.append(path)
+    return paths
+
+def get_game_image_urls(game_id):
+    """Return public URLs for all images in a game."""
+    result = supabase.storage.from_("game-images").list(game_id)
+    return [
+        supabase.storage.from_("game-images").get_public_url(f"{game_id}/{f['name']}")
+        for f in result
+    ]
+
+def download_to_temp(url):
+    """Download a remote image to a local temp file for exiftool."""
+    ext  = os.path.splitext(url.split("?")[0])[-1] or ".jpg"
+    resp = requests.get(url)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(resp.content)
+        return tmp.name
 
 def fix_orientation(img):
     """Apply EXIF orientation so the image displays upright."""
@@ -102,6 +140,14 @@ if "game_state" not in st.session_state:
     st.session_state.round_history = []  # list of dicts per round
     st.session_state.last_dist_m   = None
 
+# At the top of your app, after session state init
+params  = st.query_params
+game_id = params.get("game", None)
+
+if game_id and "remote_game_id" not in st.session_state:
+    st.session_state.remote_game_id    = game_id
+    st.session_state.remote_image_urls = get_game_image_urls(game_id)
+
 def haversine_m(pin1, pin2):
     R = 6371000.0
     lat1, lon1 = math.radians(pin1["lat"]), math.radians(pin1["lng"])
@@ -140,74 +186,80 @@ class SmoothWheelZoom(MacroElement):
     """)
 
 def load_random_media():
-    media_dir = os.path.join(os.path.dirname(__file__), "media")
-    valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
-    all_media  = [
-        f for f in os.listdir(media_dir)
-        if os.path.splitext(f)[1].lower() in valid_exts
-    ]
-    if not all_media:
-        return
-
-    chosen     = random.choice(all_media)
-    media_path = os.path.join(media_dir, chosen)
-    suffix     = os.path.splitext(chosen)[1].lower()
-    st.session_state.is_video = suffix in {".mp4", ".mov"}
-
-    if suffix in [".heic", ".heif"]:
-        img = Image.open(media_path)
-        img = ImageOps.exif_transpose(img)  # fix rotation before saving
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            img.convert("RGB").save(tmp, format="JPEG")
-            st.session_state.current_media  = tmp.name
-        st.session_state.delete_display = True
+    # Use remote URLs if a game_id was passed in the URL
+    if hasattr(st.session_state, "remote_image_urls") and st.session_state.remote_image_urls:
+        url        = random.choice(st.session_state.remote_image_urls)
+        media_path = download_to_temp(url)
+        st.session_state.delete_display = True  # clean up temp file after round
     else:
-        st.session_state.current_media  = media_path
-        st.session_state.delete_display = False
-    
-    st.session_state.exif_date = extract_exif_date(media_path)
+        media_dir = os.path.join(os.path.dirname(__file__), "media")
+        valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
+        all_media  = [
+            f for f in os.listdir(media_dir)
+            if os.path.splitext(f)[1].lower() in valid_exts
+        ]
+        if not all_media:
+            return
 
-    # Extract GPS — handle both photo and video tag schemas
-    try:
-        with ExifToolHelper() as et:
-            tags = et.get_tags(media_path, tags=[])[0]  # get all tags
+        chosen     = random.choice(all_media)
+        media_path = os.path.join(media_dir, chosen)
+        suffix     = os.path.splitext(chosen)[1].lower()
+        st.session_state.is_video = suffix in {".mp4", ".mov"}
 
-        # iPhone .mov: "Keys:GPSCoordinates" = "+lat+lng+alt/"
-        if "Keys:GPSCoordinates" in tags:
-            raw = tags["Keys:GPSCoordinates"]  # e.g. "+37.3318-122.0312+10.000/"
-            import re
-            parts = re.findall(r"[+-]?\d+\.?\d*", raw)
-            if len(parts) >= 2:
-                st.session_state.exif_pin = {
-                    "lat": float(parts[0]),
-                    "lng": float(parts[1])
-                }
+        if suffix in [".heic", ".heif"]:
+            img = Image.open(media_path)
+            img = ImageOps.exif_transpose(img)  # fix rotation before saving
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                img.convert("RGB").save(tmp, format="JPEG")
+                st.session_state.current_media  = tmp.name
+            st.session_state.delete_display = True
+        else:
+            st.session_state.current_media  = media_path
+            st.session_state.delete_display = False
+        
+        st.session_state.exif_date = extract_exif_date(media_path)
 
-        # Standard EXIF (photos + some mp4)
-        elif "EXIF:GPSLatitude" in tags:
-            lat     = tags.get("EXIF:GPSLatitude")
-            lng     = tags.get("EXIF:GPSLongitude")
-            lat_ref = tags.get("EXIF:GPSLatitudeRef")
-            lon_ref = tags.get("EXIF:GPSLongitudeRef")
-            if lat and lng:
-                if lat_ref and lat_ref.upper() == "S":
-                    lat = -abs(lat)
-                if lon_ref and lon_ref.upper() == "W":
-                    lng = -abs(lng)
-                st.session_state.exif_pin = {"lat": lat, "lng": lng}
+        # Extract GPS — handle both photo and video tag schemas
+        try:
+            with ExifToolHelper() as et:
+                tags = et.get_tags(media_path, tags=[])[0]  # get all tags
 
-        # QuickTime GPS (some Android .mp4)
-        elif "QuickTime:GPSCoordinates" in tags:
-            raw = tags["QuickTime:GPSCoordinates"]
-            import re
-            parts = re.findall(r"[+-]?\d+\.?\d*", raw)
-            if len(parts) >= 2:
-                st.session_state.exif_pin = {
-                    "lat": float(parts[0]),
-                    "lng": float(parts[1])
-                }
-    except Exception as e:
-        st.error(f"EXIF extraction failed: {e}")
+            # iPhone .mov: "Keys:GPSCoordinates" = "+lat+lng+alt/"
+            if "Keys:GPSCoordinates" in tags:
+                raw = tags["Keys:GPSCoordinates"]  # e.g. "+37.3318-122.0312+10.000/"
+                import re
+                parts = re.findall(r"[+-]?\d+\.?\d*", raw)
+                if len(parts) >= 2:
+                    st.session_state.exif_pin = {
+                        "lat": float(parts[0]),
+                        "lng": float(parts[1])
+                    }
+
+            # Standard EXIF (photos + some mp4)
+            elif "EXIF:GPSLatitude" in tags:
+                lat     = tags.get("EXIF:GPSLatitude")
+                lng     = tags.get("EXIF:GPSLongitude")
+                lat_ref = tags.get("EXIF:GPSLatitudeRef")
+                lon_ref = tags.get("EXIF:GPSLongitudeRef")
+                if lat and lng:
+                    if lat_ref and lat_ref.upper() == "S":
+                        lat = -abs(lat)
+                    if lon_ref and lon_ref.upper() == "W":
+                        lng = -abs(lng)
+                    st.session_state.exif_pin = {"lat": lat, "lng": lng}
+
+            # QuickTime GPS (some Android .mp4)
+            elif "QuickTime:GPSCoordinates" in tags:
+                raw = tags["QuickTime:GPSCoordinates"]
+                import re
+                parts = re.findall(r"[+-]?\d+\.?\d*", raw)
+                if len(parts) >= 2:
+                    st.session_state.exif_pin = {
+                        "lat": float(parts[0]),
+                        "lng": float(parts[1])
+                    }
+        except Exception as e:
+            st.error(f"EXIF extraction failed: {e}")
 
 def fmt_distance(m):
     """Format a distance in metres, switching to km when >= 1000 m."""
@@ -295,6 +347,10 @@ if st.session_state.game_state == "menu":
         "and the actual locations, as well as the days off — **lower is better!**"
     )
     st.divider()
+
+    if st.button("📤 Create Custom Game", use_container_width=True):
+        st.session_state.game_state = "upload"
+        st.rerun()
 
     st.markdown("### Game settings")
 
@@ -601,3 +657,26 @@ elif st.session_state.game_state == "gameover":
                 # Round subtotal
                 round_total = (entry["dist_m"] or 0) + (entry["day_delta"] or 0) * 1
                 st.metric("🧮 Round total", fmt_distance(round_total))
+
+elif st.session_state.game_state == "upload":
+    st.title("📤 Create a Custom Game")
+
+    uploaded_files = st.file_uploader(
+        "Upload images or videos",
+        type=["jpg", "jpeg", "heic", "png", "mp4", "mov"],
+        accept_multiple_files=True,
+    )
+
+    if uploaded_files:
+        st.write(f"{len(uploaded_files)} file(s) selected")
+
+        if st.button("🚀 Create Shareable Game", use_container_width=True):
+            game_id = str(uuid.uuid4())[:8]  # short ID e.g. "a3f9bc12"
+
+            with st.spinner("Uploading..."):
+                upload_images_to_supabase(game_id, uploaded_files)
+
+            share_url = f"http://localhost:8501/?game={game_id}"
+            st.success("Game created!")
+            st.code(share_url)
+            st.caption("Share this link with anyone to play with your images.")
