@@ -346,7 +346,7 @@ elif st.session_state.game_state == "playing":
             ">
                 <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">TOTAL SCORE</div>
                 <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{fmt_distance(st.session_state.total_distance)}</div>
-                <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">(meters) + (10 meters per day)</div>
+                <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">(meters) + (1 meter per day)</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -430,7 +430,7 @@ elif st.session_state.game_state == "playing":
 
                     if st.session_state.require_date and selected_date and st.session_state.exif_date:
                         day_delta = abs((selected_date - st.session_state.exif_date).days)
-                        st.session_state.total_distance += day_delta * 10
+                        st.session_state.total_distance += day_delta * 1
                         round_entry["day_delta"] = day_delta
 
                     st.session_state.round_history.append(round_entry)
@@ -599,5 +599,5 @@ elif st.session_state.game_state == "gameover":
                     st.caption("No date metadata for this round.")
 
                 # Round subtotal
-                round_total = (entry["dist_m"] or 0) + (entry["day_delta"] or 0) * 10
+                round_total = (entry["dist_m"] or 0) + (entry["day_delta"] or 0) * 1
                 st.metric("🧮 Round total", fmt_distance(round_total))
