@@ -27,7 +27,7 @@ def upload_images_to_supabase(game_id, files):
         ext      = os.path.splitext(f.name)[1].lower()
         filename = f"{uuid.uuid4()}{ext}"
         path     = f"{game_id}/{filename}"
-        supabase.storage.from_("game-images").upload(
+        supabase.storage.from_("media").upload(
             path,
             f.read(),
             {"content-type": f.type}
@@ -37,9 +37,9 @@ def upload_images_to_supabase(game_id, files):
 
 def get_game_image_urls(game_id):
     """Return public URLs for all images in a game."""
-    result = supabase.storage.from_("game-images").list(game_id)
+    result = supabase.storage.from_("media").list(game_id)
     return [
-        supabase.storage.from_("game-images").get_public_url(f"{game_id}/{f['name']}")
+        supabase.storage.from_("media").get_public_url(f"{game_id}/{f['name']}")
         for f in result
     ]
 
