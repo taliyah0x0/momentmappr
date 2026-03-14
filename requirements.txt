@@ -1,0 +1,4 @@
+folium
+streamlit-folium
+pyexiftool
+pillow-heif
