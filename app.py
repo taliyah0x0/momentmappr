@@ -825,10 +825,20 @@ elif st.session_state.game_state == "upload":
     # filter oversized files
     MAX_FILE_BYTES = 8 * 1024 * 1024
     if uploaded_files:
-        oversized = [f.name for f in uploaded_files if f.size > MAX_FILE_BYTES]
-        if oversized:
-            st.error(f"These files exceed 8 MB and will be skipped: {', '.join(oversized)}")
-        uploaded_files = [f for f in uploaded_files if f.size <= MAX_FILE_BYTES]
+        preview_pins = []
+        for f in uploaded_files:
+            ext = os.path.splitext(f.name)[1].lower()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(f.read())
+                tmp_path = tmp.name
+            f.seek(0)  # reset file pointer so it can be read again later during upload
+            gps = extract_gps(tmp_path)
+            os.unlink(tmp_path)
+            if gps:
+                preview_pins.append({"lat": gps["lat"], "lng": gps["lng"], "name": f.name})
+        st.session_state.upload_preview_pins = preview_pins
+    else:
+        st.session_state.upload_preview_pins = []
 
     num_files = len(uploaded_files) if uploaded_files else 0
 
@@ -848,6 +858,14 @@ elif st.session_state.game_state == "upload":
         tiles="OpenStreetMap",
     )
     SmoothWheelZoom().add_to(upload_map)
+
+    # After SmoothWheelZoom().add_to(upload_map), add:
+    for pin in st.session_state.get("upload_preview_pins", []):
+        folium.Marker(
+            location=[pin["lat"], pin["lng"]],
+            icon=folium.Icon(color="blue", icon="camera"),
+            tooltip=pin["name"],
+        ).add_to(upload_map)
 
     upload_map_data = st_folium(
         upload_map,
