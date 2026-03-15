@@ -16,33 +16,9 @@ import uuid
 import requests
 from supabase import create_client
 import io
-import sys
-import traceback
 
-try:
-    from supabase import create_client
-except Exception as e:
-    st.error(f"Import failed: {e}")
-    st.code(traceback.format_exc())
-    st.stop()
-
-try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    st.error(f"Startup failed: {e}")
-    st.code(traceback.format_exc())
-    st.stop()
-
-# Replace lines 20-22
-try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except Exception:
-    st.error("⚠️ Supabase secrets not configured. Go to App Settings → Secrets and add SUPABASE_URL and SUPABASE_KEY.")
-    st.stop()
-
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def extract_gps(media_path):

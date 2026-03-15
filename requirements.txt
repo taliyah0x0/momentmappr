@@ -8,4 +8,7 @@ requests
 supabase==2.3.0
 gotrue==2.1.0
 httpx==0.24.1
+postgrest==0.16.1
+realtime==1.0.0
+storage3==0.7.0
 websockets==11.0.3
