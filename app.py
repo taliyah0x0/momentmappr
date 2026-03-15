@@ -828,11 +828,11 @@ elif st.session_state.game_state == "upload":
 
     st.divider()
     st.markdown("### Starting map location")
-    st.caption("Pan and zoom to where you want players to start. This will be the initial view when they open the game.")
+    st.caption("Pan and zoom to where you want players to start.")
 
-    # init upload map state
+    # init upload map state only once
     if "upload_map_center" not in st.session_state:
-        st.session_state.upload_map_center = [20.0, 0.0]  # world view default
+        st.session_state.upload_map_center = [20.0, 0.0]
     if "upload_map_zoom" not in st.session_state:
         st.session_state.upload_map_zoom = 2
 
@@ -897,6 +897,16 @@ elif st.session_state.game_state == "upload":
     if can_create:
         st.write(f"{num_files} file(s) selected")
         if st.button("🚀 Create Shareable Game", use_container_width=True):
+            # Read final map position directly from the map data at click time
+            if upload_map_data and upload_map_data.get("center"):
+                start_lat  = upload_map_data["center"]["lat"]
+                start_lng  = upload_map_data["center"]["lng"]
+                start_zoom = upload_map_data.get("zoom", 4)
+            else:
+                start_lat  = st.session_state.upload_map_center[0]
+                start_lng  = st.session_state.upload_map_center[1]
+                start_zoom = st.session_state.upload_map_zoom
+
             game_id = str(uuid.uuid4())[:8]
             with st.spinner("Uploading..."):
                 create_game(
@@ -904,9 +914,9 @@ elif st.session_state.game_state == "upload":
                     uploaded_files,
                     upload_total_rounds,
                     upload_require_date,
-                    st.session_state.upload_map_center[0],
-                    st.session_state.upload_map_center[1],
-                    st.session_state.upload_map_zoom,
+                    start_lat,
+                    start_lng,
+                    start_zoom,
                 )
             share_url = f"https://momentmappr.streamlit.app/?game={game_id}"
             st.success("Game created!")
