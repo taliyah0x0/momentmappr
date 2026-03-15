@@ -1,6 +1,11 @@
+streamlit
 folium
 streamlit-folium
 pyexiftool
+Pillow
 pillow-heif
-supabase
-websockets>=13.0.0,<15.1.0 
+requests
+supabase==2.3.0
+gotrue==2.1.0
+httpx==0.24.1
+websockets==11.0.3
