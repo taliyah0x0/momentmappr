@@ -456,14 +456,6 @@ if st.session_state.game_state == "menu":
         "and the actual locations, as well as the days off — **lower is better!**"
     )
 
-    if not st.session_state.get("settings_locked"):
-        st.divider()
-        st.markdown("### Custom game maker")
-        st.markdown("You can create a custom game with your own photos to send to friends!")
-        if st.button("📤 Create Custom Game", use_container_width=True):
-            st.session_state.game_state = "upload"
-            st.rerun()
-
     st.divider()
     st.markdown("### Game settings")
 
@@ -489,7 +481,7 @@ if st.session_state.game_state == "menu":
         )
 
     if not st.session_state.get("settings_locked"):
-        st.markdown("Or play now with random photos and videos around **Johns Hopkins University Homewood Campus**")
+        st.markdown("Play now with random photos and videos around **Johns Hopkins University Homewood Campus**")
 
     if st.button("🚀 Start Game", use_container_width=True):
         if "game_metadata" in st.session_state and st.session_state.get("settings_locked"):
@@ -519,6 +511,14 @@ if st.session_state.game_state == "menu":
         st.session_state.used_media = set()
         st.session_state.game_state     = "playing"
         st.rerun()
+
+    if not st.session_state.get("settings_locked"):
+        st.divider()
+        st.markdown("### Custom game maker")
+        st.markdown("Or you can create a custom game with your own photos to send to friends!")
+        if st.button("📤 Create Custom Game", use_container_width=True):
+            st.session_state.game_state = "upload"
+            st.rerun()
 
 # ═════════════════════════════════════════════════════════════════════════════
 # GAME SCREEN
