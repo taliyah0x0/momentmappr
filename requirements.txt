@@ -5,4 +5,4 @@ pyexiftool
 Pillow
 pillow-heif
 requests
-supabase==2.3.0
+supabase
