@@ -1,1 +1,1 @@
-exiftool
+libimage-exiftool-perl
