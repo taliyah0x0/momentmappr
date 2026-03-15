@@ -843,13 +843,6 @@ elif st.session_state.game_state == "upload":
     )
     SmoothWheelZoom().add_to(upload_map)
 
-    # show a marker at the current center
-    folium.Marker(
-        location=st.session_state.upload_map_center,
-        icon=folium.Icon(color="green", icon="home"),
-        tooltip="Starting location",
-    ).add_to(upload_map)
-
     upload_map_data = st_folium(
         upload_map,
         width="100%",
