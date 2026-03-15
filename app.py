@@ -45,7 +45,7 @@ def extract_gps(media_path):
         pass
     return None
 
-def create_game(game_id, files, total_rounds, require_date):
+def create_game(game_id, files, total_rounds, require_date, start_lat=20.0, start_lng=0.0, start_zoom=2):
     media_metadata = []
 
     for f in files:
@@ -851,23 +851,6 @@ elif st.session_state.game_state == "upload":
         key="upload_map",
     )
 
-    # update stored center/zoom as user pans
-    if upload_map_data:
-        if upload_map_data.get("center"):
-            st.session_state.upload_map_center = [
-                upload_map_data["center"]["lat"],
-                upload_map_data["center"]["lng"],
-            ]
-        if upload_map_data.get("zoom"):
-            st.session_state.upload_map_zoom = upload_map_data["zoom"]
-
-    st.caption(
-        f"📌 Starting at: "
-        f"{st.session_state.upload_map_center[0]:.4f}, "
-        f"{st.session_state.upload_map_center[1]:.4f} "
-        f"— zoom {st.session_state.upload_map_zoom}"
-    )
-
     st.divider()
     st.markdown("### Game settings")
 
@@ -897,11 +880,10 @@ elif st.session_state.game_state == "upload":
     if can_create:
         st.write(f"{num_files} file(s) selected")
         if st.button("🚀 Create Shareable Game", use_container_width=True):
-            # Read final map position directly from the map data at click time
             if upload_map_data and upload_map_data.get("center"):
                 start_lat  = upload_map_data["center"]["lat"]
                 start_lng  = upload_map_data["center"]["lng"]
-                start_zoom = upload_map_data.get("zoom", 4)
+                start_zoom = upload_map_data.get("zoom") or 2
             else:
                 start_lat  = st.session_state.upload_map_center[0]
                 start_lng  = st.session_state.upload_map_center[1]
