@@ -17,9 +17,15 @@ import requests
 from supabase import create_client
 import io
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase     = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Replace lines 20-22
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except Exception:
+    st.error("⚠️ Supabase secrets not configured. Go to App Settings → Secrets and add SUPABASE_URL and SUPABASE_KEY.")
+    st.stop()
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def extract_gps(media_path):
     import re
@@ -244,9 +250,6 @@ if game_id and "remote_game_id" not in st.session_state:
         st.session_state.require_date    = settings["require_date"]
         st.session_state.game_metadata   = settings.get("media_metadata") or []
         st.session_state.settings_locked = True
-
-        # Temporary debug — remove once confirmed working
-        st.write(f"Loaded {len(st.session_state.game_metadata)} media items from game {game_id}")
     else:
         st.session_state.settings_locked = False
         st.warning(f"No game found with ID: {game_id}")
@@ -319,7 +322,11 @@ def load_random_media():
     else:
         media_dir  = os.path.join(os.path.dirname(__file__), "media")
         valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
-        all_media  = [
+        if not os.path.exists(media_dir):
+            st.warning("No media folder found. Use a shared game link or add files to the media/ folder.")
+            return
+
+        all_media = [
             f for f in os.listdir(media_dir)
             if os.path.splitext(f)[1].lower() in valid_exts
         ]
@@ -479,15 +486,18 @@ if st.session_state.game_state == "menu":
     st.divider()
 
     if st.button("🚀 Start Game", use_container_width=True):
-        if st.session_state.get("settings_locked") and hasattr(st.session_state, "game_metadata"):
+        if "game_metadata" in st.session_state and st.session_state.get("settings_locked"):
             max_rounds = len(st.session_state.game_metadata)
         else:
             media_dir  = os.path.join(os.path.dirname(__file__), "media")
             valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
-            max_rounds = len([
-                f for f in os.listdir(media_dir)
-                if os.path.splitext(f)[1].lower() in valid_exts
-            ])
+            if os.path.exists(media_dir):
+                max_rounds = len([
+                    f for f in os.listdir(media_dir)
+                    if os.path.splitext(f)[1].lower() in valid_exts
+                ])
+            else:
+                max_rounds = 0
 
         capped_rounds = min(total_rounds, max_rounds)
         if capped_rounds < total_rounds:
@@ -569,6 +579,7 @@ elif st.session_state.game_state == "playing":
             st.warning("No media found in the media/ folder.")
 
         if not st.session_state.confirmed:
+            selected_date = st.session_state.selected_date
             if st.session_state.require_date:
                 st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
 
