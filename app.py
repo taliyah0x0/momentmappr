@@ -551,8 +551,14 @@ elif st.session_state.game_state == "playing":
         st.session_state.exif_pin     = None
         st.session_state.manual_pin   = None
         st.session_state.confirmed    = False
-        st.session_state.map_center   = [39.3299, -76.6205] # default to Johns Hopkins University Homewood Campus
-        st.session_state.map_zoom     = 16
+        # Only reset map position on the very first round of the game,
+        # not on every round — and don't overwrite shared link start position
+        if st.session_state.rounds == 0:
+            if "remote_game_id" not in st.session_state:
+                # local game — use JHU default
+                st.session_state.map_center = [39.3299, -76.6205]
+                st.session_state.map_zoom   = 16
+            # else: shared link already set map_center and map_zoom from settings, leave them
         load_random_media()
         st.session_state.initialized  = True
         st.session_state.selected_date = None
