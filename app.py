@@ -837,7 +837,7 @@ elif st.session_state.game_state == "upload":
             game_id = str(uuid.uuid4())[:8]
             with st.spinner("Uploading..."):
                 create_game(game_id, uploaded_files, upload_total_rounds, upload_require_date)
-            share_url = f"http://localhost:8501/?game={game_id}"
+            share_url = f"https://momentmappr.streamlit.app/?game={game_id}"
             st.success("Game created!")
             st.code(share_url)
             st.caption("Share this link with anyone to play with your images.")
