@@ -457,11 +457,6 @@ if st.session_state.game_state == "menu":
     )
     st.divider()
 
-    if not st.session_state.get("settings_locked"):
-        if st.button("📤 Create Custom Game", use_container_width=True):
-            st.session_state.game_state = "upload"
-            st.rerun()
-
     st.markdown("### Game settings")
 
     if st.session_state.get("settings_locked"):
@@ -485,10 +480,8 @@ if st.session_state.game_state == "menu":
             help="If on, you must also guess the date the media was taken."
         )
 
-    st.divider()
-
     if not st.session_state.get("settings_locked"):
-        st.markdown("**Play now with random photos and videos around Johns Hopkins University Homewood Campus:**")
+        st.markdown("Play now with random photos and videos around **Johns Hopkins University Homewood Campus**")
 
     if st.button("🚀 Start Game", use_container_width=True):
         if "game_metadata" in st.session_state and st.session_state.get("settings_locked"):
@@ -507,6 +500,13 @@ if st.session_state.game_state == "menu":
         capped_rounds = min(total_rounds, max_rounds)
         if capped_rounds < total_rounds:
             st.warning(f"Only {max_rounds} media files available — rounds capped to {capped_rounds}.")
+
+        if not st.session_state.get("settings_locked"):
+            st.divider()
+            st.markdown("Or you can create a custom game with your own photos")
+            if st.button("📤 Create Custom Game", use_container_width=True):
+                st.session_state.game_state = "upload"
+                st.rerun()
 
         st.session_state.total_distance = 0.0
         st.session_state.rounds         = 0
@@ -817,7 +817,7 @@ elif st.session_state.game_state == "upload":
     st.title("📤 Create a Custom Game")
 
     uploaded_files = st.file_uploader(
-        "Upload images or videos",
+        "Upload images only (max 8MB per file)",
         type=["jpg", "jpeg", "heic", "png"],
         accept_multiple_files=True,
     )
