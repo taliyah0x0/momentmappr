@@ -20,6 +20,81 @@ SUPABASE_URL = "https://yvimwdrcqxkeqzjsvwni.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aW13ZHJjcXhrZXF6anN2d25pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mjg3NjMsImV4cCI6MjA4OTEwNDc2M30.0KE4E-vrJqnVmVmmOqxDNhJh-3lsDuy-r-ixxdDyFpQ"
 supabase     = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def extract_gps(media_path):
+    import re
+    try:
+        with ExifToolHelper() as et:
+            tags = et.get_tags(media_path, tags=[])[0]
+        if "Keys:GPSCoordinates" in tags:
+            parts = re.findall(r"[+-]?\d+\.?\d*", tags["Keys:GPSCoordinates"])
+            if len(parts) >= 2:
+                return {"lat": float(parts[0]), "lng": float(parts[1])}
+        elif "EXIF:GPSLatitude" in tags:
+            lat, lng     = tags.get("EXIF:GPSLatitude"), tags.get("EXIF:GPSLongitude")
+            lat_ref, lon_ref = tags.get("EXIF:GPSLatitudeRef"), tags.get("EXIF:GPSLongitudeRef")
+            if lat and lng:
+                if lat_ref and lat_ref.upper() == "S": lat = -abs(lat)
+                if lon_ref and lon_ref.upper() == "W": lng = -abs(lng)
+                return {"lat": lat, "lng": lng}
+        elif "QuickTime:GPSCoordinates" in tags:
+            parts = re.findall(r"[+-]?\d+\.?\d*", tags["QuickTime:GPSCoordinates"])
+            if len(parts) >= 2:
+                return {"lat": float(parts[0]), "lng": float(parts[1])}
+    except Exception:
+        pass
+    return None
+
+def create_game(game_id, files, total_rounds, require_date):
+    media_metadata = []
+
+    for f in files:
+        ext      = os.path.splitext(f.name)[1].lower()
+        filename = f"{uuid.uuid4()}{ext}"
+        path     = f"{game_id}/{filename}"
+        data     = f.read()
+
+        # Upload raw bytes
+        try:
+            supabase.storage.from_("media").upload(
+                path,
+                data,
+                {"content-type": f.type}
+            )
+        except Exception as e:
+            st.error(f"Upload failed for {f.name}: {e}")
+            continue
+
+        # Extract EXIF from the bytes before they leave your machine
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+
+        gps  = extract_gps(tmp_path)   # returns {"lat": ..., "lng": ...} or None
+        date = extract_exif_date(tmp_path)  # returns datetime.date or None
+        os.unlink(tmp_path)
+
+        media_metadata.append({
+            "path":     path,
+            "lat":      gps["lat"]  if gps  else None,
+            "lng":      gps["lng"]  if gps  else None,
+            "taken_on": date.isoformat() if date else None,
+        })
+
+    # Save game settings + per-file metadata
+    supabase.table("games").insert({
+        "game_id":        game_id,
+        "total_rounds":   total_rounds,
+        "require_date":   require_date,
+        "media_metadata": media_metadata,  # stored as JSONB
+    }).execute()
+
+def get_game_settings(game_id):
+    """Fetch total_rounds and require_date for a game."""
+    result = supabase.table("games").select("total_rounds, require_date").eq("game_id", game_id).execute()
+    if result.data:
+        return result.data[0]
+    return None
+
 def upload_images_to_supabase(game_id, files):
     """Upload a list of Streamlit UploadedFile objects."""
     paths = []
@@ -41,7 +116,7 @@ def get_game_image_urls(game_id):
         options={"limit": 100, "offset": 0}
     )
     
-    valid_exts = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".mp4", ".mov"}
+    valid_exts = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
     urls = []
     for f in result:
         name = f.get("name", "")
@@ -151,6 +226,7 @@ if "game_state" not in st.session_state:
     st.session_state.total_rounds  = 5
     st.session_state.round_history = []  # list of dicts per round
     st.session_state.last_dist_m   = None
+    st.session_state.used_media = set()
 
 # At the top of your app, after session state init
 params  = st.query_params
@@ -159,6 +235,18 @@ game_id = params.get("game", None)
 if game_id and "remote_game_id" not in st.session_state:
     st.session_state.remote_game_id    = game_id
     st.session_state.remote_image_urls = get_game_image_urls(game_id)
+
+    settings = get_game_settings(game_id)
+    if settings:
+        st.session_state.total_rounds    = settings["total_rounds"]
+        st.session_state.require_date    = settings["require_date"]
+        st.session_state.game_metadata   = settings.get("media_metadata") or []
+        st.session_state.settings_locked = True
+    else:
+        st.session_state.settings_locked = False
+else:
+    if "settings_locked" not in st.session_state:
+        st.session_state.settings_locked = False
 
 def haversine_m(pin1, pin2):
     R = 6371000.0
@@ -198,33 +286,57 @@ class SmoothWheelZoom(MacroElement):
     """)
 
 def load_random_media():
-    # Use remote URLs if a game_id was passed in the URL
-    if hasattr(st.session_state, "remote_image_urls") and st.session_state.remote_image_urls:
-        url        = random.choice(st.session_state.remote_image_urls)
+    if "used_media" not in st.session_state:
+        st.session_state.used_media = set()
+
+    # ── Remote (Supabase) branch ──────────────────────────────────────────────
+    if hasattr(st.session_state, "remote_game_id") and hasattr(st.session_state, "game_metadata"):
+        available = [
+            m for m in st.session_state.game_metadata
+            if m["path"] not in st.session_state.used_media
+        ]
+        if not available:
+            st.warning("All media has been used.")
+            return
+
+        meta = random.choice(available)
+        st.session_state.used_media.add(meta["path"])
+
+        url        = supabase.storage.from_("media").get_public_url(meta["path"])
         media_path = download_to_temp(url)
-        st.session_state.current_media  = media_path          # ← missing
-        suffix = os.path.splitext(media_path)[1].lower()
-        st.session_state.is_video       = suffix in {".mp4", ".mov"}  # ← missing
+        suffix     = os.path.splitext(media_path)[1].lower()
+
+        st.session_state.current_media  = media_path
         st.session_state.delete_display = True
-        st.session_state.exif_date      = extract_exif_date(media_path)  # ← missing
+        st.session_state.is_video       = suffix in {".mp4", ".mov"}
+        st.session_state.exif_pin       = {"lat": meta["lat"], "lng": meta["lng"]} if meta.get("lat") else None
+        st.session_state.exif_date      = datetime.date.fromisoformat(meta["taken_on"]) if meta.get("taken_on") else None
+
+    # ── Local branch ──────────────────────────────────────────────────────────
     else:
-        media_dir = os.path.join(os.path.dirname(__file__), "media")
+        media_dir  = os.path.join(os.path.dirname(__file__), "media")
         valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
         all_media  = [
             f for f in os.listdir(media_dir)
             if os.path.splitext(f)[1].lower() in valid_exts
         ]
-        if not all_media:
+
+        available = [f for f in all_media if f not in st.session_state.used_media]
+
+        if not available:
+            st.warning("All media has been used.")
             return
 
-        chosen     = random.choice(all_media)
+        chosen     = random.choice(available)
+        st.session_state.used_media.add(chosen)
+
         media_path = os.path.join(media_dir, chosen)
         suffix     = os.path.splitext(chosen)[1].lower()
         st.session_state.is_video = suffix in {".mp4", ".mov"}
 
         if suffix in [".heic", ".heif"]:
             img = Image.open(media_path)
-            img = ImageOps.exif_transpose(img)  # fix rotation before saving
+            img = ImageOps.exif_transpose(img)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 img.convert("RGB").save(tmp, format="JPEG")
                 st.session_state.current_media  = tmp.name
@@ -232,48 +344,28 @@ def load_random_media():
         else:
             st.session_state.current_media  = media_path
             st.session_state.delete_display = False
-        
+
         st.session_state.exif_date = extract_exif_date(media_path)
 
-        # Extract GPS — handle both photo and video tag schemas
         try:
+            import re
             with ExifToolHelper() as et:
-                tags = et.get_tags(media_path, tags=[])[0]  # get all tags
-
-            # iPhone .mov: "Keys:GPSCoordinates" = "+lat+lng+alt/"
+                tags = et.get_tags(media_path, tags=[])[0]
             if "Keys:GPSCoordinates" in tags:
-                raw = tags["Keys:GPSCoordinates"]  # e.g. "+37.3318-122.0312+10.000/"
-                import re
-                parts = re.findall(r"[+-]?\d+\.?\d*", raw)
+                parts = re.findall(r"[+-]?\d+\.?\d*", tags["Keys:GPSCoordinates"])
                 if len(parts) >= 2:
-                    st.session_state.exif_pin = {
-                        "lat": float(parts[0]),
-                        "lng": float(parts[1])
-                    }
-
-            # Standard EXIF (photos + some mp4)
+                    st.session_state.exif_pin = {"lat": float(parts[0]), "lng": float(parts[1])}
             elif "EXIF:GPSLatitude" in tags:
-                lat     = tags.get("EXIF:GPSLatitude")
-                lng     = tags.get("EXIF:GPSLongitude")
-                lat_ref = tags.get("EXIF:GPSLatitudeRef")
-                lon_ref = tags.get("EXIF:GPSLongitudeRef")
+                lat, lng     = tags.get("EXIF:GPSLatitude"), tags.get("EXIF:GPSLongitude")
+                lat_ref, lon_ref = tags.get("EXIF:GPSLatitudeRef"), tags.get("EXIF:GPSLongitudeRef")
                 if lat and lng:
-                    if lat_ref and lat_ref.upper() == "S":
-                        lat = -abs(lat)
-                    if lon_ref and lon_ref.upper() == "W":
-                        lng = -abs(lng)
+                    if lat_ref and lat_ref.upper() == "S": lat = -abs(lat)
+                    if lon_ref and lon_ref.upper() == "W": lng = -abs(lng)
                     st.session_state.exif_pin = {"lat": lat, "lng": lng}
-
-            # QuickTime GPS (some Android .mp4)
             elif "QuickTime:GPSCoordinates" in tags:
-                raw = tags["QuickTime:GPSCoordinates"]
-                import re
-                parts = re.findall(r"[+-]?\d+\.?\d*", raw)
+                parts = re.findall(r"[+-]?\d+\.?\d*", tags["QuickTime:GPSCoordinates"])
                 if len(parts) >= 2:
-                    st.session_state.exif_pin = {
-                        "lat": float(parts[0]),
-                        "lng": float(parts[1])
-                    }
+                    st.session_state.exif_pin = {"lat": float(parts[0]), "lng": float(parts[1])}
         except Exception as e:
             st.error(f"EXIF extraction failed: {e}")
 
@@ -286,14 +378,54 @@ def fmt_distance(m):
 st.markdown(
     """
     <style>
-        .block-container { padding-top: 1rem; }
-        [data-testid="stSidebar"] > div:first-child { padding-top: 0.5rem; }
-        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.25rem; }
-        [data-testid="stSidebar"] hr { margin-top: 0.2rem; margin-bottom: 0.2rem; }
-        [data-testid="stSidebar"] [data-testid="stMetric"] { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+        /* Sidebar padding */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 0.25rem;
+        }
+
+        /* Divider margins */
+        [data-testid="stSidebar"] hr {
+            margin-top: 0.2rem;
+            margin-bottom: 0.2rem;
+        }
+
+        /* Metric label/value spacing */
+        [data-testid="stSidebar"] [data-testid="stMetric"] {
+            padding-top: 0.1rem;
+            padding-bottom: 0.1rem;
+        }
+
+        /* Header spacing */
         [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3 { margin-top: 0rem; margin-bottom: 0rem; }
+        [data-testid="stSidebar"] h3 {
+            margin-top: 0rem;
+            margin-bottom: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    <style>
+        .block-container {
+            padding-top: 1rem;
+        }
+
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 1rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebar"] > div:first-child {
+            padding-top: 0.5rem;
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -313,36 +445,59 @@ if st.session_state.game_state == "menu":
     )
     st.divider()
 
-    if st.button("📤 Create Custom Game", use_container_width=True):
-        st.session_state.game_state = "upload"
-        st.rerun()
+    if not st.session_state.get("settings_locked"):
+        if st.button("📤 Create Custom Game", use_container_width=True):
+            st.session_state.game_state = "upload"
+            st.rerun()
 
     st.markdown("### Game settings")
 
-    total_rounds = st.number_input(
-        "Number of rounds",
-        min_value=1,
-        max_value=50,
-        value=st.session_state.total_rounds,
-        step=1,
-    )
-
-    require_date = st.toggle(
-        "Require date guess",
-        value=st.session_state.require_date,
-        help="If on, you must also guess the date the media was taken."
-    )
+    if st.session_state.get("settings_locked"):
+        # Show locked settings as read-only
+        st.info(f"🔒 This is a shared game — settings are fixed by the creator.")
+        st.markdown(f"**Rounds:** {st.session_state.total_rounds}")
+        st.markdown(f"**Date guessing:** {'Required' if st.session_state.require_date else 'Off'}")
+        total_rounds  = st.session_state.total_rounds
+        require_date  = st.session_state.require_date
+    else:
+        total_rounds = st.number_input(
+            "Number of rounds",
+            min_value=1,
+            max_value=50,
+            value=st.session_state.total_rounds,
+            step=1,
+        )
+        require_date = st.toggle(
+            "Require date guess",
+            value=st.session_state.require_date,
+            help="If on, you must also guess the date the media was taken."
+        )
 
     st.divider()
 
     if st.button("🚀 Start Game", use_container_width=True):
+        if st.session_state.get("settings_locked") and hasattr(st.session_state, "game_metadata"):
+            max_rounds = len(st.session_state.game_metadata)
+        else:
+            media_dir  = os.path.join(os.path.dirname(__file__), "media")
+            valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
+            max_rounds = len([
+                f for f in os.listdir(media_dir)
+                if os.path.splitext(f)[1].lower() in valid_exts
+            ])
+
+        capped_rounds = min(total_rounds, max_rounds)
+        if capped_rounds < total_rounds:
+            st.warning(f"Only {max_rounds} media files available — rounds capped to {capped_rounds}.")
+
         st.session_state.total_distance = 0.0
         st.session_state.rounds         = 0
         st.session_state.last_dist_m    = None
         st.session_state.initialized    = False
         st.session_state.require_date   = require_date
         st.session_state.total_rounds   = total_rounds
-        st.session_state_round_history = []
+        st.session_state.round_history  = []
+        st.session_state.used_media = set()
         st.session_state.game_state     = "playing"
         st.rerun()
 
@@ -623,7 +778,9 @@ elif st.session_state.game_state == "gameover":
                 # Round subtotal
                 round_total = (entry["dist_m"] or 0) + (entry["day_delta"] or 0) * 1
                 st.metric("🧮 Round total", fmt_distance(round_total))
-
+# ═════════════════════════════════════════════════════════════════════════════
+# CREATE CUSTOM SCREEN
+# ═════════════════════════════════════════════════════════════════════════════
 elif st.session_state.game_state == "upload":
     st.title("📤 Create a Custom Game")
 
@@ -633,16 +790,48 @@ elif st.session_state.game_state == "upload":
         accept_multiple_files=True,
     )
 
-    if uploaded_files:
-        st.write(f"{len(uploaded_files)} file(s) selected")
+    num_files = len(uploaded_files) if uploaded_files else 0
 
+    st.divider()
+    st.markdown("### Game settings")
+
+    upload_total_rounds = st.number_input(
+        "Number of rounds",
+        min_value=1,
+        max_value=max(num_files, 1),   # cap max to number of uploaded files
+        value=min(5, max(num_files, 1)),
+        step=1,
+        disabled=num_files == 0,
+        help="Cannot exceed the number of uploaded files.",
+    )
+
+    if num_files > 0 and upload_total_rounds > num_files:
+        st.warning(f"Rounds cannot exceed the number of uploaded files ({num_files}).")
+
+    upload_require_date = st.toggle(
+        "Require date guess",
+        value=True,
+        help="If on, players must also guess the date the media was taken."
+    )
+
+    st.divider()
+
+    can_create = num_files > 0 and upload_total_rounds <= num_files
+
+    if num_files == 0:
+        st.info("Upload at least one file to create a game.")
+
+    if can_create:
+        st.write(f"{num_files} file(s) selected")
         if st.button("🚀 Create Shareable Game", use_container_width=True):
-            game_id = str(uuid.uuid4())[:8]  # short ID e.g. "a3f9bc12"
-
+            game_id = str(uuid.uuid4())[:8]
             with st.spinner("Uploading..."):
-                upload_images_to_supabase(game_id, uploaded_files)
-
+                create_game(game_id, uploaded_files, upload_total_rounds, upload_require_date)
             share_url = f"http://localhost:8501/?game={game_id}"
             st.success("Game created!")
             st.code(share_url)
             st.caption("Share this link with anyone to play with your images.")
+
+    if st.button("🏠 Back to Menu", use_container_width=True):
+        st.session_state.game_state = "menu"
+        st.rerun()
