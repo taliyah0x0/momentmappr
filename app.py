@@ -86,12 +86,15 @@ def create_game(game_id, files, total_rounds, require_date):
         "game_id":        game_id,
         "total_rounds":   total_rounds,
         "require_date":   require_date,
-        "media_metadata": media_metadata,  # stored as JSONB
+        "media_metadata": media_metadata,
+        "start_lat":      start_lat,
+        "start_lng":      start_lng,
+        "start_zoom":     start_zoom,
     }).execute()
 
 def get_game_settings(game_id):
     result = supabase.table("games").select(
-        "total_rounds, require_date, media_metadata"
+        "total_rounds, require_date, media_metadata, start_lat, start_lng, start_zoom"
     ).eq("game_id", game_id).execute()
     if result.data:
         return result.data[0]
@@ -243,6 +246,11 @@ if game_id and "remote_game_id" not in st.session_state:
         st.session_state.total_rounds    = settings["total_rounds"]
         st.session_state.require_date    = settings["require_date"]
         st.session_state.game_metadata   = settings.get("media_metadata") or []
+        st.session_state.map_center      = [
+            settings.get("start_lat", 39.3299),
+            settings.get("start_lng", -76.6205),
+        ]
+        st.session_state.map_zoom        = settings.get("start_zoom", 4)
         st.session_state.settings_locked = True
     else:
         st.session_state.settings_locked = False
@@ -479,6 +487,9 @@ if st.session_state.game_state == "menu":
 
     st.divider()
 
+    if not st.session_state.get("settings_locked"):
+        st.markdown("**Play now with random photos and videos around Johns Hopkins University Homewood Campus:**")
+
     if st.button("🚀 Start Game", use_container_width=True):
         if "game_metadata" in st.session_state and st.session_state.get("settings_locked"):
             max_rounds = len(st.session_state.game_metadata)
@@ -540,7 +551,7 @@ elif st.session_state.game_state == "playing":
         st.session_state.exif_pin     = None
         st.session_state.manual_pin   = None
         st.session_state.confirmed    = False
-        st.session_state.map_center   = [39.3299, -76.6205]
+        st.session_state.map_center   = [39.3299, -76.6205] # default to Johns Hopkins University Homewood Campus
         st.session_state.map_zoom     = 16
         load_random_media()
         st.session_state.initialized  = True
@@ -799,23 +810,70 @@ elif st.session_state.game_state == "gameover":
 elif st.session_state.game_state == "upload":
     st.title("📤 Create a Custom Game")
 
-    MAX_FILE_MB = 8
-    MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
-
     uploaded_files = st.file_uploader(
         "Upload images or videos",
         type=["jpg", "jpeg", "heic", "png"],
         accept_multiple_files=True,
     )
 
-    # Filter out files that are too large
+    # filter oversized files
+    MAX_FILE_BYTES = 8 * 1024 * 1024
     if uploaded_files:
         oversized = [f.name for f in uploaded_files if f.size > MAX_FILE_BYTES]
         if oversized:
-            st.error(f"These files exceed the {MAX_FILE_MB} MB limit and will be skipped: {', '.join(oversized)}")
+            st.error(f"These files exceed 8 MB and will be skipped: {', '.join(oversized)}")
         uploaded_files = [f for f in uploaded_files if f.size <= MAX_FILE_BYTES]
 
     num_files = len(uploaded_files) if uploaded_files else 0
+
+    st.divider()
+    st.markdown("### Starting map location")
+    st.caption("Pan and zoom to where you want players to start. This will be the initial view when they open the game.")
+
+    # init upload map state
+    if "upload_map_center" not in st.session_state:
+        st.session_state.upload_map_center = [20.0, 0.0]  # world view default
+    if "upload_map_zoom" not in st.session_state:
+        st.session_state.upload_map_zoom = 2
+
+    upload_map = folium.Map(
+        location=st.session_state.upload_map_center,
+        zoom_start=st.session_state.upload_map_zoom,
+        tiles="OpenStreetMap",
+    )
+    SmoothWheelZoom().add_to(upload_map)
+
+    # show a marker at the current center
+    folium.Marker(
+        location=st.session_state.upload_map_center,
+        icon=folium.Icon(color="green", icon="home"),
+        tooltip="Starting location",
+    ).add_to(upload_map)
+
+    upload_map_data = st_folium(
+        upload_map,
+        width="100%",
+        height=400,
+        returned_objects=["center", "zoom"],
+        key="upload_map",
+    )
+
+    # update stored center/zoom as user pans
+    if upload_map_data:
+        if upload_map_data.get("center"):
+            st.session_state.upload_map_center = [
+                upload_map_data["center"]["lat"],
+                upload_map_data["center"]["lng"],
+            ]
+        if upload_map_data.get("zoom"):
+            st.session_state.upload_map_zoom = upload_map_data["zoom"]
+
+    st.caption(
+        f"📌 Starting at: "
+        f"{st.session_state.upload_map_center[0]:.4f}, "
+        f"{st.session_state.upload_map_center[1]:.4f} "
+        f"— zoom {st.session_state.upload_map_zoom}"
+    )
 
     st.divider()
     st.markdown("### Game settings")
@@ -823,15 +881,12 @@ elif st.session_state.game_state == "upload":
     upload_total_rounds = st.number_input(
         "Number of rounds",
         min_value=1,
-        max_value=max(num_files, 1),   # cap max to number of uploaded files
+        max_value=max(num_files, 1),
         value=min(5, max(num_files, 1)),
         step=1,
         disabled=num_files == 0,
         help="Cannot exceed the number of uploaded files.",
     )
-
-    if num_files > 0 and upload_total_rounds > num_files:
-        st.warning(f"Rounds cannot exceed the number of uploaded files ({num_files}).")
 
     upload_require_date = st.toggle(
         "Require date guess",
@@ -851,7 +906,15 @@ elif st.session_state.game_state == "upload":
         if st.button("🚀 Create Shareable Game", use_container_width=True):
             game_id = str(uuid.uuid4())[:8]
             with st.spinner("Uploading..."):
-                create_game(game_id, uploaded_files, upload_total_rounds, upload_require_date)
+                create_game(
+                    game_id,
+                    uploaded_files,
+                    upload_total_rounds,
+                    upload_require_date,
+                    st.session_state.upload_map_center[0],
+                    st.session_state.upload_map_center[1],
+                    st.session_state.upload_map_zoom,
+                )
             share_url = f"https://momentmappr.streamlit.app/?game={game_id}"
             st.success("Game created!")
             st.code(share_url)
