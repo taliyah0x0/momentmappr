@@ -17,8 +17,8 @@ import requests
 from supabase import create_client
 import io
 
-SUPABASE_URL = "https://yvimwdrcqxkeqzjsvwni.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aW13ZHJjcXhrZXF6anN2d25pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mjg3NjMsImV4cCI6MjA4OTEwNDc2M30.0KE4E-vrJqnVmVmmOqxDNhJh-3lsDuy-r-ixxdDyFpQ"
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase     = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def extract_gps(media_path):
