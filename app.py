@@ -130,7 +130,8 @@ if "game_state" not in st.session_state:
     st.session_state.confirmed       = False
     st.session_state.map_center      = [39.3299, -76.6205]
     st.session_state.map_zoom        = 16
-    st.session_state.current_image   = None
+    st.session_state.current_media   = None
+    st.session_state.is_video        = False
     st.session_state.delete_display  = False
     st.session_state.selected_date = None
     st.session_state.date_confirmed = False
@@ -502,9 +503,9 @@ elif st.session_state.game_state == "playing":
             if st.session_state.rounds < st.session_state.total_rounds:
                 st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
                 if st.button("🔀 Next Round", use_container_width=True):
-                    if st.session_state.delete_display and st.session_state.current_image:
+                    if st.session_state.delete_display and st.session_state.current_media:
                         try:
-                            os.unlink(st.session_state.current_image)
+                            os.unlink(st.session_state.current_media)
                         except Exception:
                             pass
                     st.session_state.initialized = False
