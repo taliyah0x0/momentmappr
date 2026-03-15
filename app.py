@@ -458,7 +458,8 @@ if st.session_state.game_state == "menu":
 
     if not st.session_state.get("settings_locked"):
         st.divider()
-        st.markdown("You can create a custom game with your own photos")
+        st.markdown("### Custom game maker")
+        st.markdown("You can create a custom game with your own photos to send to friends!")
         if st.button("📤 Create Custom Game", use_container_width=True):
             st.session_state.game_state = "upload"
             st.rerun()
