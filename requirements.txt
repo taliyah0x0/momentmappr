@@ -1,9 +1,6 @@
-streamlit
 folium
 streamlit-folium
-Jinja2
 pyexiftool
-Pillow
 pillow-heif
-requests
 supabase
+websockets>=13.0.0,<15.1.0 
