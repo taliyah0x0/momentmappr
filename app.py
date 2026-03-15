@@ -15,6 +15,7 @@ import base64
 import uuid
 import requests
 from supabase import create_client
+import io
 
 SUPABASE_URL = "https://yvimwdrcqxkeqzjsvwni.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aW13ZHJjcXhrZXF6anN2d25pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mjg3NjMsImV4cCI6MjA4OTEwNDc2M30.0KE4E-vrJqnVmVmmOqxDNhJh-3lsDuy-r-ixxdDyFpQ"
@@ -89,8 +90,9 @@ def create_game(game_id, files, total_rounds, require_date):
     }).execute()
 
 def get_game_settings(game_id):
-    """Fetch total_rounds and require_date for a game."""
-    result = supabase.table("games").select("total_rounds, require_date").eq("game_id", game_id).execute()
+    result = supabase.table("games").select(
+        "total_rounds, require_date, media_metadata"
+    ).eq("game_id", game_id).execute()
     if result.data:
         return result.data[0]
     return None
@@ -242,11 +244,12 @@ if game_id and "remote_game_id" not in st.session_state:
         st.session_state.require_date    = settings["require_date"]
         st.session_state.game_metadata   = settings.get("media_metadata") or []
         st.session_state.settings_locked = True
+
+        # Temporary debug — remove once confirmed working
+        st.write(f"Loaded {len(st.session_state.game_metadata)} media items from game {game_id}")
     else:
         st.session_state.settings_locked = False
-else:
-    if "settings_locked" not in st.session_state:
-        st.session_state.settings_locked = False
+        st.warning(f"No game found with ID: {game_id}")
 
 def haversine_m(pin1, pin2):
     R = 6371000.0
@@ -290,7 +293,7 @@ def load_random_media():
         st.session_state.used_media = set()
 
     # ── Remote (Supabase) branch ──────────────────────────────────────────────
-    if hasattr(st.session_state, "remote_game_id") and hasattr(st.session_state, "game_metadata"):
+    if "remote_game_id" in st.session_state and "game_metadata" in st.session_state:
         available = [
             m for m in st.session_state.game_metadata
             if m["path"] not in st.session_state.used_media
@@ -299,7 +302,7 @@ def load_random_media():
             st.warning("All media has been used.")
             return
 
-        meta = random.choice(available)
+        meta       = random.choice(available)
         st.session_state.used_media.add(meta["path"])
 
         url        = supabase.storage.from_("media").get_public_url(meta["path"])
@@ -591,13 +594,20 @@ elif st.session_state.game_state == "playing":
                     st.session_state.confirmed = True
                     st.session_state.rounds   += 1
 
+                    # In the confirm button handler, when building round_entry:
                     round_entry = {
                         "media_path": st.session_state.current_media,
                         "is_video":   st.session_state.is_video,
                         "dist_m":     None,
                         "day_delta":  None,
                         "exif_date":  st.session_state.exif_date,
+                        "media_bytes": None,
                     }
+
+                    # Read and store bytes immediately at confirm time
+                    if st.session_state.current_media and os.path.exists(st.session_state.current_media):
+                        with open(st.session_state.current_media, "rb") as f:
+                            round_entry["media_bytes"] = f.read()
 
                     if st.session_state.exif_pin:
                         dist = haversine_m(st.session_state.manual_pin, st.session_state.exif_pin)
@@ -749,11 +759,11 @@ elif st.session_state.game_state == "gameover":
             col_media, col_stats = st.columns([1, 1])
 
             with col_media:
-                if entry["media_path"] and os.path.exists(entry["media_path"]):
+                if entry.get("media_bytes"):
                     if entry["is_video"]:
-                        st.video(entry["media_path"])
+                        st.video(entry["media_bytes"])
                     else:
-                        img = Image.open(entry["media_path"])
+                        img = Image.open(io.BytesIO(entry["media_bytes"]))
                         img = ImageOps.exif_transpose(img)
                         st.image(img, use_container_width=True)
                 else:
