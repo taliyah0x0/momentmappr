@@ -7,11 +7,11 @@ from exiftool import ExifToolHelper
 import tempfile
 import os
 import random
-from PIL import Image
+from PIL import Image, ImageOps
 import pillow_heif
 import math
 import datetime
-from PIL import ImageOps
+import base64
 import uuid
 import requests
 from supabase import create_client
@@ -202,7 +202,11 @@ def load_random_media():
     if hasattr(st.session_state, "remote_image_urls") and st.session_state.remote_image_urls:
         url        = random.choice(st.session_state.remote_image_urls)
         media_path = download_to_temp(url)
-        st.session_state.delete_display = True  # clean up temp file after round
+        st.session_state.current_media  = media_path          # ← missing
+        suffix = os.path.splitext(media_path)[1].lower()
+        st.session_state.is_video       = suffix in {".mp4", ".mov"}  # ← missing
+        st.session_state.delete_display = True
+        st.session_state.exif_date      = extract_exif_date(media_path)  # ← missing
     else:
         media_dir = os.path.join(os.path.dirname(__file__), "media")
         valid_exts = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".mp4", ".mov"}
@@ -282,65 +286,14 @@ def fmt_distance(m):
 st.markdown(
     """
     <style>
-        /* Sidebar padding */
-        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-            gap: 0.25rem;
-        }
-
-        /* Divider margins */
-        [data-testid="stSidebar"] hr {
-            margin-top: 0.2rem;
-            margin-bottom: 0.2rem;
-        }
-
-        /* Metric label/value spacing */
-        [data-testid="stSidebar"] [data-testid="stMetric"] {
-            padding-top: 0.1rem;
-            padding-bottom: 0.1rem;
-        }
-
-        /* Header spacing */
+        .block-container { padding-top: 1rem; }
+        [data-testid="stSidebar"] > div:first-child { padding-top: 0.5rem; }
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.25rem; }
+        [data-testid="stSidebar"] hr { margin-top: 0.2rem; margin-bottom: 0.2rem; }
+        [data-testid="stSidebar"] [data-testid="stMetric"] { padding-top: 0.1rem; padding-bottom: 0.1rem; }
         [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3 {
-            margin-top: 0rem;
-            margin-bottom: 0rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-    <style>
-        .block-container {
-            padding-top: 1rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown(
-    """
-    <style>
-        .block-container {
-            padding-top: 1rem;
-        }
-
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 1rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 0.5rem;
-        }
+        [data-testid="stSidebar"] h3 { margin-top: 0rem; margin-bottom: 0rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -389,6 +342,7 @@ if st.session_state.game_state == "menu":
         st.session_state.initialized    = False
         st.session_state.require_date   = require_date
         st.session_state.total_rounds   = total_rounds
+        st.session_state_round_history = []
         st.session_state.game_state     = "playing"
         st.rerun()
 
