@@ -799,11 +799,21 @@ elif st.session_state.game_state == "gameover":
 elif st.session_state.game_state == "upload":
     st.title("📤 Create a Custom Game")
 
+    MAX_FILE_MB = 8
+    MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
+
     uploaded_files = st.file_uploader(
         "Upload images or videos",
-        type=["jpg", "jpeg", "heic", "png", "mp4", "mov"],
+        type=["jpg", "jpeg", "heic", "png"],
         accept_multiple_files=True,
     )
+
+    # Filter out files that are too large
+    if uploaded_files:
+        oversized = [f.name for f in uploaded_files if f.size > MAX_FILE_BYTES]
+        if oversized:
+            st.error(f"These files exceed the {MAX_FILE_MB} MB limit and will be skipped: {', '.join(oversized)}")
+        uploaded_files = [f for f in uploaded_files if f.size <= MAX_FILE_BYTES]
 
     num_files = len(uploaded_files) if uploaded_files else 0
 
