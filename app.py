@@ -36,12 +36,27 @@ def upload_images_to_supabase(game_id, files):
     return paths
 
 def get_game_image_urls(game_id):
-    """Return public URLs for all images in a game."""
+    """Return public URLs for all media in a game."""
     result = supabase.storage.from_("media").list(game_id)
-    return [
-        supabase.storage.from_("media").get_public_url(f"{game_id}/{f['name']}")
-        for f in result
-    ]
+    
+    # Debug: show what Supabase actually returned
+    st.write("Raw Supabase list result:", result)
+    
+    valid_exts = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".mp4", ".mov"}
+    urls = []
+    for f in result:
+        name = f.get("name", "")
+        # Skip placeholder/empty entries Supabase sometimes returns
+        if not name or name == ".emptyFolderPlaceholder":
+            continue
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in valid_exts:
+            continue
+        path = f"{game_id}/{name}"
+        url  = supabase.storage.from_("media").get_public_url(path)
+        urls.append(url)
+    
+    return urls
 
 def download_to_temp(url):
     """Download a remote image to a local temp file for exiftool."""
