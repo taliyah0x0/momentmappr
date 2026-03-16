@@ -45,7 +45,7 @@ def extract_gps(media_path):
         pass
     return None
 
-def create_game(game_id, files, total_rounds, require_date, start_lat=20.0, start_lng=0.0, start_zoom=2):
+def create_game(game_id, files, total_rounds, require_date, start_lat=20.0, start_lng=0.0, start_zoom=2, title=""):
     media_metadata = []
 
     for f in files:
@@ -90,11 +90,12 @@ def create_game(game_id, files, total_rounds, require_date, start_lat=20.0, star
         "start_lat":      start_lat,
         "start_lng":      start_lng,
         "start_zoom":     start_zoom,
+        "title":          title,
     }).execute()
 
 def get_game_settings(game_id):
     result = supabase.table("games").select(
-        "total_rounds, require_date, media_metadata, start_lat, start_lng, start_zoom"
+        "total_rounds, require_date, media_metadata, start_lat, start_lng, start_zoom, title"
     ).eq("game_id", game_id).execute()
     if result.data:
         return result.data[0]
@@ -231,6 +232,7 @@ if "game_state" not in st.session_state:
     st.session_state.total_rounds  = 5
     st.session_state.round_history = []  # list of dicts per round
     st.session_state.last_dist_m   = None
+    st.session_state.game_title = ""
     st.session_state.used_media = set()
 
 # At the top of your app, after session state init
@@ -251,6 +253,7 @@ if game_id and "remote_game_id" not in st.session_state:
             settings.get("start_lng", -76.6205),
         ]
         st.session_state.map_zoom        = settings.get("start_zoom", 4)
+        st.session_state.game_title      = settings.get("title") or ""
         st.session_state.settings_locked = True
     else:
         st.session_state.settings_locked = False
@@ -447,6 +450,8 @@ st.markdown(
 # ═════════════════════════════════════════════════════════════════════════════
 if st.session_state.game_state == "menu":
     st.title("📍 MomentMappr")
+    if st.session_state.get("game_title"):
+        st.subheader(st.session_state.game_title)
     st.markdown("### How to play")
     st.markdown(
         "A photo or video will be shown in the sidebar. "
@@ -528,6 +533,8 @@ elif st.session_state.game_state == "playing":
 
     with col_title:
         st.title("📍 MomentMappr")
+        if st.session_state.get("game_title"):
+            st.subheader(st.session_state.game_title)
 
     with col_score:
         st.markdown(
@@ -817,6 +824,12 @@ elif st.session_state.game_state == "gameover":
 elif st.session_state.game_state == "upload":
     st.title("📤 Create a Custom Game")
 
+    game_title = st.text_input(
+        "Game title",
+        placeholder="e.g. College Memories, World Trip, Family Album, ...",
+        max_chars=60,
+    )
+
     uploaded_files = st.file_uploader(
         "Upload images only (max 8MB per file)",
         type=["jpg", "jpeg", "heic", "png"],
@@ -924,6 +937,7 @@ elif st.session_state.game_state == "upload":
                     start_lat,
                     start_lng,
                     start_zoom,
+                    title=game_title,
                 )
             share_url = f"https://momentmappr.streamlit.app/?game={game_id}"
             st.success("Game created!")
