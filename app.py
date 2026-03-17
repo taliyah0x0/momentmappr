@@ -19,19 +19,14 @@ import io
 import streamlit.components.v1 as components
 
 def scroll_to_top():
+    st.markdown("<div id='top'></div>", unsafe_allow_html=True)
     components.html(
         """
         <script>
             setTimeout(function() {
-                // Log all scrollable elements to find the right one
-                var all = window.parent.document.querySelectorAll('*');
-                for (var i = 0; i < all.length; i++) {
-                    var el = all[i];
-                    if (el.scrollTop > 0) {
-                        console.log('scrollable:', el, el.className, el.id, el.getAttribute('data-testid'));
-                    }
-                }
-            }, 500);
+                window.parent.location.hash = '';
+                window.parent.location.hash = 'top';
+            }, 50);
         </script>
         """,
         height=0,
