@@ -566,10 +566,12 @@ elif st.session_state.game_state == "playing":
                 # local game — use JHU default
                 st.session_state.map_center = [39.3299, -76.6205]
                 st.session_state.map_zoom   = 16
-        load_random_media()
+        with st.spinner("Loading media..."):
+            load_random_media()
         st.session_state.initialized  = True
         st.session_state.selected_date = None
         st.session_state.last_dist_m   = None
+        st.rerun()
 
     col_title, col_score = st.columns([5, 2])
 
