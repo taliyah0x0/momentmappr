@@ -456,7 +456,7 @@ if st.session_state.game_state == "menu":
     st.markdown(
         "A photo or video will be shown in the sidebar. "
         "Place a pin on the map where you think the media was taken, "
-        "and optionally, guess the date it was taken, then hit **Confirm**. "
+        "and if required, guess the date it was taken, then hit **Confirm**. "
         "Your total score is the cumulative distance between your guesses "
         "and the actual locations, as well as the days off — **lower is better!**"
     )
@@ -517,13 +517,12 @@ if st.session_state.game_state == "menu":
         st.session_state.game_state     = "playing"
         st.rerun()
 
-    if not st.session_state.get("settings_locked"):
-        st.divider()
-        st.markdown("### Custom game maker")
-        st.markdown("Or you can create a custom game with your own photos to send to friends!")
-        if st.button("📤 Create Custom Game", use_container_width=True):
-            st.session_state.game_state = "upload"
-            st.rerun()
+    st.divider()
+    st.markdown("### Custom game maker")
+    st.markdown("Or you can create a custom game with your own photos to send to friends!")
+    if st.button("📤 Create Custom Game", use_container_width=True):
+        st.session_state.game_state = "upload"
+        st.rerun()
 
 # ═════════════════════════════════════════════════════════════════════════════
 # GAME SCREEN
