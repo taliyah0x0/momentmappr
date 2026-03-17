@@ -557,13 +557,25 @@ if st.session_state.game_state == "menu":
 # ═════════════════════════════════════════════════════════════════════════════
 elif st.session_state.game_state == "playing":
     scroll_to_top()
+    if not st.session_state.initialized:
+        st.session_state.exif_pin     = None
+        st.session_state.manual_pin   = None
+        st.session_state.confirmed    = False
+        if st.session_state.rounds == 0:
+            if "remote_game_id" not in st.session_state:
+                # local game — use JHU default
+                st.session_state.map_center = [39.3299, -76.6205]
+                st.session_state.map_zoom   = 16
+        load_random_media()
+        st.session_state.initialized  = True
+        st.session_state.selected_date = None
+        st.session_state.last_dist_m   = None
+
     col_title, col_score = st.columns([5, 2])
 
     with col_title:
         st.title("📍 MomentMappr")
-        st.markdown(
-            "Click on the map to place location, then hit **Confirm** in the sidebar."
-            )
+        st.markdown("Click on the map to place location, then hit **Confirm** in the sidebar.")
 
     with col_score:
         st.markdown(
@@ -583,23 +595,6 @@ elif st.session_state.game_state == "playing":
             """,
             unsafe_allow_html=True,
         )
-
-    if not st.session_state.initialized:
-        st.session_state.exif_pin     = None
-        st.session_state.manual_pin   = None
-        st.session_state.confirmed    = False
-        # Only reset map position on the very first round of the game,
-        # not on every round — and don't overwrite shared link start position
-        if st.session_state.rounds == 0:
-            if "remote_game_id" not in st.session_state:
-                # local game — use JHU default
-                st.session_state.map_center = [39.3299, -76.6205]
-                st.session_state.map_zoom   = 16
-            # else: shared link already set map_center and map_zoom from settings, leave them
-        load_random_media()
-        st.session_state.initialized  = True
-        st.session_state.selected_date = None
-        st.session_state.last_dist_m   = None
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
