@@ -17,21 +17,22 @@ import requests
 from supabase import create_client
 import io
 import streamlit.components.v1 as components
+import time
 
 def scroll_to_top():
     components.html(
-        """
+        f"""
         <script>
-            setTimeout(function() {
+            setTimeout(function() {{
                 var doc = window.parent.document;
-                // Scroll every element that could possibly be the container
                 doc.body.scrollTop = 0;
                 doc.documentElement.scrollTop = 0;
                 var els = doc.querySelectorAll('*');
-                for (var i = 0; i < els.length; i++) {
-                    try { els[i].scrollTop = 0; } catch(e) {}
-                }
-            }, 100);
+                for (var i = 0; i < els.length; i++) {{
+                    try {{ els[i].scrollTop = 0; }} catch(e) {{}}
+                }}
+            }}, 100);
+            // cache buster: {time.time()}
         </script>
         """,
         height=0,
