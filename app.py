@@ -161,6 +161,18 @@ def get_game_image_urls(game_id):
     
     return urls
 
+def fmt_time(seconds):
+    seconds = int(seconds)
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    if h > 0:
+        return f"{h}h {m}m {s}s"
+    elif m > 0:
+        return f"{m}m {s}s"
+    else:
+        return f"{s}s"
+    
 def download_to_temp(url):
     """Download a remote image to a local temp file for exiftool."""
     ext  = os.path.splitext(url.split("?")[0])[-1] or ".jpg"
@@ -261,6 +273,8 @@ if "game_state" not in st.session_state:
     st.session_state.game_title = ""
     st.session_state.used_media = set()
     st.session_state.last_scrolled_state = None
+    st.session_state.game_start_time = None
+    st.session_state.game_elapsed_s  = 0
 
 # At the top of your app, after session state init
 params  = st.query_params
@@ -542,6 +556,8 @@ if st.session_state.game_state == "menu":
         st.session_state.total_rounds   = total_rounds
         st.session_state.round_history  = []
         st.session_state.used_media = set()
+        st.session_state.game_start_time = time.time()
+        st.session_state.game_elapsed_s  = 0
         st.session_state.game_state     = "playing"
         st.rerun()
 
@@ -649,6 +665,10 @@ elif st.session_state.game_state == "playing":
                 if st.button("✅ Confirm", use_container_width=True):
                     st.session_state.confirmed = True
                     st.session_state.rounds   += 1
+
+                    if st.session_state.rounds >= st.session_state.total_rounds:
+                        if st.session_state.game_start_time:
+                            st.session_state.game_elapsed_s = time.time() - st.session_state.game_start_time
 
                     # In the confirm button handler, when building round_entry:
                     round_entry = {
@@ -796,6 +816,10 @@ elif st.session_state.game_state == "gameover":
             </div>
             <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
                 {st.session_state.total_rounds} rounds
+            </div>
+            <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
+            <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
+                {fmt_time(st.session_state.game_elapsed_s)}
             </div>
         </div>
         """,
