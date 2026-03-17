@@ -20,23 +20,28 @@ import streamlit.components.v1 as components
 import time
 
 def scroll_to_top():
-    components.html(
-        f"""
-        <script>
-            setTimeout(function() {{
-                var doc = window.parent.document;
-                doc.body.scrollTop = 0;
-                doc.documentElement.scrollTop = 0;
-                var els = doc.querySelectorAll('*');
-                for (var i = 0; i < els.length; i++) {{
-                    try {{ els[i].scrollTop = 0; }} catch(e) {{}}
-                }}
-            }}, 100);
-            // cache buster: {time.time()}
-        </script>
-        """,
-        height=0,
-    )
+    current_state = st.session_state.game_state
+    last_scrolled = st.session_state.get("last_scrolled_state")
+
+    if last_scrolled != current_state:
+        st.session_state.last_scrolled_state = current_state
+        components.html(
+            f"""
+            <script>
+                setTimeout(function() {{
+                    var doc = window.parent.document;
+                    doc.body.scrollTop = 0;
+                    doc.documentElement.scrollTop = 0;
+                    var els = doc.querySelectorAll('*');
+                    for (var i = 0; i < els.length; i++) {{
+                        try {{ els[i].scrollTop = 0; }} catch(e) {{}}
+                    }}
+                }}, 100);
+                // {current_state}
+            </script>
+            """,
+            height=0,
+        )
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -255,6 +260,7 @@ if "game_state" not in st.session_state:
     st.session_state.last_dist_m   = None
     st.session_state.game_title = ""
     st.session_state.used_media = set()
+    st.session_state.last_scrolled_state = None
 
 # At the top of your app, after session state init
 params  = st.query_params
