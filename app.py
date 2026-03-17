@@ -22,11 +22,23 @@ def scroll_to_top():
     components.html(
         """
         <script>
-            var main = window.parent.document.querySelector('section.main');
-            if (!main) main = window.parent.document.querySelector('.main');
-            if (!main) main = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
-            if (!main) main = window.parent.document.documentElement;
-            if (main) main.scrollTo(0, 0);
+            setTimeout(function() {
+                var selectors = [
+                    '[data-testid="stAppViewContainer"]',
+                    '[data-testid="stMain"]',
+                    'section.main',
+                    '.main',
+                    '.block-container'
+                ];
+                for (var i = 0; i < selectors.length; i++) {
+                    var el = window.parent.document.querySelector(selectors[i]);
+                    if (el) {
+                        el.scrollTop = 0;
+                        window.parent.scrollTo(0, 0);
+                        break;
+                    }
+                }
+            }, 100);
         </script>
         """,
         height=0,
