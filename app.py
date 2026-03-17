@@ -253,6 +253,7 @@ pillow_heif.register_heif_opener()
 if "game_state" not in st.session_state:
     st.session_state.game_state      = "menu"
     st.session_state.total_distance  = 0.0
+    st.session_state.total_days     = 0
     st.session_state.rounds          = 0
     st.session_state.initialized     = False
     st.session_state.exif_pin        = None
@@ -551,6 +552,7 @@ if st.session_state.game_state == "menu":
             st.warning(f"Only {max_rounds} media files available — rounds capped to {capped_rounds}.")
 
         st.session_state.total_distance = 0.0
+        st.session_state.total_days     = 0
         st.session_state.rounds         = 0
         st.session_state.last_dist_m    = None
         st.session_state.initialized    = False
@@ -609,9 +611,10 @@ elif st.session_state.game_state == "playing":
                 text-align: center;
                 margin-top: 8px;
             ">
-                <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">TOTAL SCORE</div>
+                <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">📍 DISTANCE</div>
                 <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{fmt_distance(st.session_state.total_distance)}</div>
-                <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">(meters) + (1 meter per day)</div>
+                <div style="font-size: 0.75rem; color: #aaa; margin-top: 6px; margin-bottom: 2px;">📅 DAYS OFF</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -700,7 +703,7 @@ elif st.session_state.game_state == "playing":
 
                     if st.session_state.require_date and selected_date and st.session_state.exif_date:
                         day_delta = abs((selected_date - st.session_state.exif_date).days)
-                        st.session_state.total_distance += day_delta * 1
+                        st.session_state.total_days += day_delta
                         round_entry["day_delta"] = day_delta
 
                     st.session_state.round_history.append(round_entry)
@@ -821,8 +824,13 @@ elif st.session_state.game_state == "gameover":
             margin-bottom: 1.5rem;
         ">
             <div style="font-size: 1rem; color: #aaa; margin-bottom: 6px;">FINAL SCORE</div>
-            <div style="font-size: 2.2rem; font-weight: 800; color: #fff;">
+            <div style="font-size: 1rem; color: #aaa; margin-bottom: 4px;">📍 Total Distance</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #fff;">
                 {fmt_distance(st.session_state.total_distance)}
+            </div>
+            <div style="font-size: 1rem; color: #aaa; margin-top: 10px; margin-bottom: 4px;">📅 Total Days Off</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #fff;">
+                {st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}
             </div>
             <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
                 {st.session_state.total_rounds} rounds
@@ -877,10 +885,6 @@ elif st.session_state.game_state == "gameover":
                         st.caption(f"Actual date: {entry['exif_date'].strftime('%b %d, %Y')}")
                 elif st.session_state.require_date:
                     st.caption("No date metadata for this round.")
-
-                # Round subtotal
-                round_total = (entry["dist_m"] or 0) + (entry["day_delta"] or 0) * 1
-                st.metric("🧮 Round total", fmt_distance(round_total))
 # ═════════════════════════════════════════════════════════════════════════════
 # CREATE CUSTOM SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
