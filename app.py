@@ -849,7 +849,7 @@ elif st.session_state.game_state == "gameover":
                 </div>
                 <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
                 <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
-                    {fmt_time(st.session_state.game_elapsed_s-1)}
+                    {fmt_time(st.session_state.game_elapsed_s)}
                 </div>
                 <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
                     {st.session_state.total_rounds} rounds
@@ -876,7 +876,7 @@ elif st.session_state.game_state == "gameover":
                 </div>
                 <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
                 <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
-                    {fmt_time(st.session_state.game_elapsed_s-1)}
+                    {fmt_time(st.session_state.game_elapsed_s)}
                 </div>
                 <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
                     {st.session_state.total_rounds} rounds
