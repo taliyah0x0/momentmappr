@@ -23,8 +23,15 @@ def scroll_to_top():
         """
         <script>
             setTimeout(function() {
-                window.parent.scrollTo({top: 0, behavior: 'instant'});
-            }, 50);
+                // Log all scrollable elements to find the right one
+                var all = window.parent.document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {
+                    var el = all[i];
+                    if (el.scrollTop > 0) {
+                        console.log('scrollable:', el, el.className, el.id, el.getAttribute('data-testid'));
+                    }
+                }
+            }, 500);
         </script>
         """,
         height=0,
