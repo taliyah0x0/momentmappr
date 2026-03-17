@@ -275,6 +275,8 @@ if "game_state" not in st.session_state:
     st.session_state.last_scrolled_state = None
     st.session_state.game_start_time = None
     st.session_state.game_elapsed_s  = 0
+    st.session_state.round_start_time = None
+    st.session_state.last_round_time_s = 0
 
 # At the top of your app, after session state init
 params  = st.query_params
@@ -587,6 +589,7 @@ elif st.session_state.game_state == "playing":
         st.session_state.initialized  = True
         st.session_state.selected_date = None
         st.session_state.last_dist_m   = None
+        st.session_state.round_start_time = time.time()
         st.rerun()
 
     col_title, col_score = st.columns([5, 2])
@@ -670,6 +673,9 @@ elif st.session_state.game_state == "playing":
                         if st.session_state.game_start_time:
                             st.session_state.game_elapsed_s = time.time() - st.session_state.game_start_time
 
+                    if st.session_state.round_start_time:
+                        st.session_state.last_round_time_s = time.time() - st.session_state.round_start_time
+
                     # In the confirm button handler, when building round_entry:
                     round_entry = {
                         "media_path": st.session_state.current_media,
@@ -678,6 +684,7 @@ elif st.session_state.game_state == "playing":
                         "day_delta":  None,
                         "exif_date":  st.session_state.exif_date,
                         "media_bytes": None,
+                        "round_time_s":   st.session_state.get("last_round_time_s", 0),
                     }
 
                     # Read and store bytes immediately at confirm time
@@ -729,7 +736,7 @@ elif st.session_state.game_state == "playing":
             st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
             if st.session_state.last_dist_m is not None:
                 st.metric("📏 This round", fmt_distance(st.session_state.last_dist_m))
-
+            
             if st.session_state.selected_date and st.session_state.exif_date:
                 day_delta = abs((st.session_state.selected_date - st.session_state.exif_date).days)
                 st.metric("📅 Date off by", f"{day_delta} day{'s' if day_delta != 1 else ''}")
@@ -739,6 +746,9 @@ elif st.session_state.game_state == "playing":
 
             if not st.session_state.exif_pin:
                 st.warning("No GPS data found in this media.")
+
+            if st.session_state.get("last_round_time_s"):
+                st.metric("⏱️ Round time", fmt_time(st.session_state.last_round_time_s))
 
     # ── Map ───────────────────────────────────────────────────────────────────
     m = folium.Map(
@@ -855,6 +865,8 @@ elif st.session_state.game_state == "gameover":
                     st.metric("📍 Distance off", fmt_distance(entry["dist_m"]))
                 else:
                     st.caption("No GPS data for this round.")
+                if entry.get("round_time_s"):
+                    st.metric("⏱️ Round time", fmt_time(entry["round_time_s"]))
 
                 if entry["day_delta"] is not None:
                     st.metric(
