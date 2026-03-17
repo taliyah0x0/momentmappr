@@ -16,6 +16,13 @@ import uuid
 import requests
 from supabase import create_client
 import io
+import streamlit.components.v1 as components
+
+def scroll_to_top():
+    components.html(
+        "<script>window.parent.document.querySelector('section.main').scrollTo(0, 0);</script>",
+        height=0,
+    )
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -449,6 +456,7 @@ st.markdown(
 # MENU SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
 if st.session_state.game_state == "menu":
+    scroll_to_top()
     st.title("📍 MomentMappr")
     if st.session_state.get("game_title"):
         st.subheader(st.session_state.game_title)
@@ -528,6 +536,7 @@ if st.session_state.game_state == "menu":
 # GAME SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
 elif st.session_state.game_state == "playing":
+    scroll_to_top()
     col_title, col_score = st.columns([5, 2])
 
     with col_title:
@@ -749,6 +758,7 @@ elif st.session_state.game_state == "playing":
 # GAME OVER SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
 elif st.session_state.game_state == "gameover":
+    scroll_to_top()
     st.title("🏁 Game Over")
 
     # Final score box
@@ -821,6 +831,7 @@ elif st.session_state.game_state == "gameover":
 # CREATE CUSTOM SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
 elif st.session_state.game_state == "upload":
+    scroll_to_top()
     st.title("📤 Create a Custom Game")
 
     game_title = st.text_input(
