@@ -23,22 +23,8 @@ def scroll_to_top():
         """
         <script>
             setTimeout(function() {
-                var selectors = [
-                    '[data-testid="stAppViewContainer"]',
-                    '[data-testid="stMain"]',
-                    'section.main',
-                    '.main',
-                    '.block-container'
-                ];
-                for (var i = 0; i < selectors.length; i++) {
-                    var el = window.parent.document.querySelector(selectors[i]);
-                    if (el) {
-                        el.scrollTop = 0;
-                        window.parent.scrollTo(0, 0);
-                        break;
-                    }
-                }
-            }, 100);
+                window.parent.scrollTo({top: 0, behavior: 'instant'});
+            }, 50);
         </script>
         """,
         height=0,
