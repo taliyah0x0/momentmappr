@@ -561,8 +561,7 @@ elif st.session_state.game_state == "playing":
 
     with col_title:
         st.title("📍 MomentMappr")
-        if st.session_state.get("game_title"):
-            st.subheader(st.session_state.game_title)
+        st.markdown("Place your location guess by clicking on the map, then hit **Confirm** in the sidebar.")
 
     with col_score:
         st.markdown(
