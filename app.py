@@ -847,12 +847,12 @@ elif st.session_state.game_state == "gameover":
                 <div style="font-size: 2rem; font-weight: 800; color: #fff;">
                     {st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}
                 </div>
-                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
-                    {st.session_state.total_rounds} rounds
-                </div>
                 <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
                 <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
-                    {fmt_time(st.session_state.game_elapsed_s)}
+                    {fmt_time(st.session_state.game_elapsed_s-1)}
+                </div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
+                    {st.session_state.total_rounds} rounds
                 </div>
             </div>
             """,
@@ -874,12 +874,12 @@ elif st.session_state.game_state == "gameover":
                 <div style="font-size: 2rem; font-weight: 800; color: #fff;">
                     {fmt_distance(st.session_state.total_distance)}
                 </div>
-                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
-                    {st.session_state.total_rounds} rounds
-                </div>
                 <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
                 <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
-                    {fmt_time(st.session_state.game_elapsed_s)}
+                    {fmt_time(st.session_state.game_elapsed_s-1)}
+                </div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
+                    {st.session_state.total_rounds} rounds
                 </div>
             </div>
             """,
@@ -915,8 +915,6 @@ elif st.session_state.game_state == "gameover":
                     st.metric("📍 Distance off", fmt_distance(entry["dist_m"]))
                 else:
                     st.caption("No GPS data for this round.")
-                if entry.get("round_time_s"):
-                    st.metric("⏱️ Round time", fmt_time(entry["round_time_s"]))
 
                 if entry["day_delta"] is not None:
                     st.metric(
@@ -927,6 +925,9 @@ elif st.session_state.game_state == "gameover":
                         st.caption(f"Actual date: {entry['exif_date'].strftime('%b %d, %Y')}")
                 elif st.session_state.require_date:
                     st.caption("No date metadata for this round.")
+
+                if entry.get("round_time_s"):
+                    st.metric("⏱️ Round time", fmt_time(entry["round_time_s"]))
 # ═════════════════════════════════════════════════════════════════════════════
 # CREATE CUSTOM SCREEN
 # ═════════════════════════════════════════════════════════════════════════════
