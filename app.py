@@ -274,7 +274,6 @@ if "game_state" not in st.session_state:
     st.session_state.game_title = ""
     st.session_state.used_media = set()
     st.session_state.last_scrolled_state = None
-    st.session_state.game_start_time = None
     st.session_state.game_elapsed_s  = 0
     st.session_state.round_start_time = None
     st.session_state.last_round_time_s = 0
@@ -560,7 +559,6 @@ if st.session_state.game_state == "menu":
         st.session_state.total_rounds   = total_rounds
         st.session_state.round_history  = []
         st.session_state.used_media = set()
-        st.session_state.game_start_time = time.time()
         st.session_state.game_elapsed_s  = 0
         st.session_state.game_state     = "playing"
         st.rerun()
@@ -601,24 +599,42 @@ elif st.session_state.game_state == "playing":
         st.markdown("Click on the map to place location, then hit **Confirm** in the sidebar.")
 
     with col_score:
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #1e1e1e;
-                border: 1px solid #444;
-                border-radius: 10px;
-                padding: 10px 14px;
-                text-align: center;
-                margin-top: 8px;
-            ">
-                <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">📍 DISTANCE</div>
-                <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{fmt_distance(st.session_state.total_distance)}</div>
-                <div style="font-size: 0.75rem; color: #aaa; margin-top: 6px; margin-bottom: 2px;">📅 DAYS OFF</div>
-                <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if st.session_state.require_date:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #1e1e1e;
+                    border: 1px solid #444;
+                    border-radius: 10px;
+                    padding: 10px 14px;
+                    text-align: center;
+                    margin-top: 8px;
+                ">
+                    <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">📍 DISTANCE</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{fmt_distance(st.session_state.total_distance)}</div>
+                    <div style="font-size: 0.75rem; color: #aaa; margin-top: 6px; margin-bottom: 2px;">📅 DAYS OFF</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #1e1e1e;
+                    border: 1px solid #444;
+                    border-radius: 10px;
+                    padding: 10px 14px;
+                    text-align: center;
+                    margin-top: 8px;
+                ">
+                    <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 2px;">📍 DISTANCE</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{fmt_distance(st.session_state.total_distance)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -672,13 +688,11 @@ elif st.session_state.game_state == "playing":
                     st.session_state.confirmed = True
                     st.session_state.rounds   += 1
 
-                    if st.session_state.rounds >= st.session_state.total_rounds:
-                        if st.session_state.game_start_time:
-                            st.session_state.game_elapsed_s = time.time() - st.session_state.game_start_time
-
                     if st.session_state.round_start_time:
-                        st.session_state.last_round_time_s = time.time() - st.session_state.round_start_time
-
+                        round_time = time.time() - st.session_state.round_start_time
+                        st.session_state.last_round_time_s  = round_time
+                        st.session_state.game_elapsed_s    += round_time
+                    
                     # In the confirm button handler, when building round_entry:
                     round_entry = {
                         "media_path": st.session_state.current_media,
@@ -813,36 +827,64 @@ elif st.session_state.game_state == "gameover":
     st.title("🏁 Game Over")
 
     # Final score box
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #1e1e1e;
-            border: 1px solid #444;
-            border-radius: 14px;
-            padding: 20px 28px;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        ">
-            <div style="font-size: 1rem; color: #aaa; margin-bottom: 6px;">FINAL SCORE</div>
-            <div style="font-size: 1rem; color: #aaa; margin-bottom: 4px;">📍 Total Distance</div>
-            <div style="font-size: 2rem; font-weight: 800; color: #fff;">
-                {fmt_distance(st.session_state.total_distance)}
+    if st.session_state.require_date:
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #1e1e1e;
+                border: 1px solid #444;
+                border-radius: 14px;
+                padding: 20px 28px;
+                text-align: center;
+                margin-bottom: 1.5rem;
+            ">
+                <div style="font-size: 1rem; color: #aaa; margin-bottom: 6px;">FINAL SCORE</div>
+                <div style="font-size: 1rem; color: #aaa; margin-bottom: 4px;">📍 Total Distance</div>
+                <div style="font-size: 2rem; font-weight: 800; color: #fff;">
+                    {fmt_distance(st.session_state.total_distance)}
+                </div>
+                <div style="font-size: 1rem; color: #aaa; margin-top: 10px; margin-bottom: 4px;">📅 Total Days Off</div>
+                <div style="font-size: 2rem; font-weight: 800; color: #fff;">
+                    {st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}
+                </div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
+                    {st.session_state.total_rounds} rounds
+                </div>
+                <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
+                <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
+                    {fmt_time(st.session_state.game_elapsed_s)}
+                </div>
             </div>
-            <div style="font-size: 1rem; color: #aaa; margin-top: 10px; margin-bottom: 4px;">📅 Total Days Off</div>
-            <div style="font-size: 2rem; font-weight: 800; color: #fff;">
-                {st.session_state.total_days} day{"s" if st.session_state.total_days != 1 else ""}
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #1e1e1e;
+                border: 1px solid #444;
+                border-radius: 14px;
+                padding: 20px 28px;
+                text-align: center;
+                margin-bottom: 1.5rem;
+            ">
+                <div style="font-size: 1rem; color: #aaa; margin-bottom: 6px;">FINAL SCORE</div>
+                <div style="font-size: 1rem; color: #aaa; margin-bottom: 4px;">📍 Total Distance</div>
+                <div style="font-size: 2rem; font-weight: 800; color: #fff;">
+                    {fmt_distance(st.session_state.total_distance)}
+                </div>
+                <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
+                    {st.session_state.total_rounds} rounds
+                </div>
+                <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
+                <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
+                    {fmt_time(st.session_state.game_elapsed_s)}
+                </div>
             </div>
-            <div style="font-size: 0.8rem; color: #888; margin-top: 6px;">
-                {st.session_state.total_rounds} rounds
-            </div>
-            <div style="font-size: 1rem; color: #aaa; margin-top: 12px;">⏱️ Time</div>
-            <div style="font-size: 1.6rem; font-weight: 700; color: #fff;">
-                {fmt_time(st.session_state.game_elapsed_s)}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
     if st.button("🔁 Play Again", use_container_width=True):
         st.session_state.game_state    = "menu"
