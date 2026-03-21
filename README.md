@@ -1,4 +1,4 @@
-## See [momentmappr.streamlit.app](https://momentmappr.streamlit.app)!
+## 📍 [momentmappr.streamlit.app](https://momentmappr.streamlit.app)
 
 Compete to guess the **location** and **date** that a photo was taken! *It's like GeoGuessr but for your memories.*
 
