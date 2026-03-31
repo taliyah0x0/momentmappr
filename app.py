@@ -942,13 +942,13 @@ elif st.session_state.game_state == "upload":
     )
 
     uploaded_files = st.file_uploader(
-        "Upload images only (max 8MB per file)",
+        "Upload images only (max 20MB per file)",
         type=["jpg", "jpeg", "heic", "png"],
         accept_multiple_files=True,
     )
 
     # filter oversized files
-    MAX_FILE_BYTES = 8 * 1024 * 1024
+    MAX_FILE_BYTES = 20 * 1024 * 1024
     if uploaded_files:
         preview_pins = []
         for f in uploaded_files:
