@@ -7,4 +7,4 @@ Play with random photos and videos taken around the Johns Hopkins University Hom
 Also, you can clone this entire repository and replace the entire media folder with your own photos and videos, then host the app on [streamlit.io](https://streamlit.io) for an unlimited media library.
 
 ![MomentMappr Game](https://i.ibb.co/SwJGMXvM/mappr.png)
-![MomentMappr Custom](https://i.ibb.co/fz43ggjL/custom.png)
+![MomentMappr Custom](https://i.ibb.co/M5NPstvq/custom.png)
